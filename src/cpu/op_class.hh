@@ -145,6 +145,8 @@ static const OpClass CustomVcosOp = enums::CustomVcos;
 static const OpClass CustomVlogOp = enums::CustomVlog;
 static const OpClass CustomVatanOp = enums::CustomVatan;
 static const OpClass CustomVlaneIdxOp = enums::CustomVlaneIdx;
+static const OpClass CustomTransposePushOp = enums::CustomTransposePush;
+static const OpClass CustomTransposePopOp = enums::CustomTransposePop;
 
 static const OpClass Num_OpClasses = enums::Num_OpClass;
 

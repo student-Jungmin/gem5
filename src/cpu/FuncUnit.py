@@ -128,6 +128,8 @@ class OpClass(Enum):
         "CustomVlog",
         "CustomVatan",
         "CustomVlaneIdx",
+        "CustomTransposePush",
+        "CustomTransposePop",
     ]
 
 

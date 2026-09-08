@@ -4856,6 +4856,19 @@ decode QUADRANT default Unknown::unknown() {
                     Vd_vu[0] = 0;
                 }}, OPFVV, CustomMatMulvpopOp);
             }
+            // The transpose unit's pop. THE SF.VC FORM PICKS THE SLOT: bit 29
+            // says an instruction takes a vector operand and bit 25 says it
+            // writes none, so a push and a pop cannot share a VFUNCT6 -- the pop
+            // is a .v.i beside vpop (0x2) and the push is a .iv beside iVpush,
+            // down in 0x0a. lower_to_vcix reaches these through the upstream
+            // sf.vc intrinsics, which can only ask for those forms.
+            0x3: decode VM {
+                0x0: decode SIMM5 {
+                    0x0: VectorNonSplitFormat::tVpop_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomTransposePopOp);
+                }
+            }
             0xb: decode VM {
                 0x0: VectorNonSplitFormat::vexp_v({{
                     Vd_vu[0] = Vs2_vu[0];
@@ -4893,6 +4906,19 @@ decode QUADRANT default Unknown::unknown() {
                     0x3: VectorNonSplitFormat::vatan_v({{
                         Vd_vu[0] = Vs2_vu[0];
                     }}, OPFVV, CustomVatanOp);
+                }
+                // The transpose unit's push -- a .iv like i_vpush and w_vpush,
+                // which is what puts it here rather than beside its own pop.
+                // SIMM5 IS DECODED, not ignored: a family number is one of four
+                // per form, so a different machine takes a family and a different
+                // operation of the same machine takes a SIMM5. Matching all 32
+                // here would spend the transpose unit's whole reserve on its
+                // first operation.
+                0x1: decode SIMM5 {
+                    0x0: VectorNonSplitFormat::tVpush_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomTransposePushOp);
                 }
             }
         }
