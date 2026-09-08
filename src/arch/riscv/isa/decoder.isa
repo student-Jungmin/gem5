@@ -4776,6 +4776,20 @@ decode QUADRANT default Unknown::unknown() {
     0x16: decode FUNCT3 { // CUSTOMFORMAT
         0x3: decode VFUNCT6 {
             0x1: decode VM {
+                // The crossbar's pop. A .v.i like the transpose's, so it lands in
+                // the free VM arm of a family whose other arm is the matmul's 32
+                // computes -- SIMM5 names the operation, one family for the unit.
+                0x0: decode SIMM5 {
+                    0x0: VectorNonSplitFormat::xVpopAdd_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomCrossbarPopOp);
+                    0x1: VectorNonSplitFormat::xVpopMax_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomCrossbarPopOp);
+                    0x2: VectorNonSplitFormat::xVpopBcast_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomCrossbarPopOp);
+                }
                 0x1: decode SIMM5 {
                     0x0: VectorNonSplitFormat::compute00_vi({{
                     }}, OPIVI, CustomMatMulOp);
@@ -4873,6 +4887,22 @@ decode QUADRANT default Unknown::unknown() {
                 0x0: VectorNonSplitFormat::vexp_v({{
                     Vd_vu[0] = Vs2_vu[0];
                 }}, OPFVV, CustomVexpOp);
+                // The crossbar's push -- a .iv like every other push, which is
+                // what puts it beside vexp rather than beside its own pop.
+                0x1: decode SIMM5 {
+                    0x0: VectorNonSplitFormat::xVpushAdd_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomCrossbarPushOp);
+                    0x1: VectorNonSplitFormat::xVpushMax_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomCrossbarPushOp);
+                    0x2: VectorNonSplitFormat::xVpushBcast_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomCrossbarPushOp);
+                }
             }
             0x8: decode VM {
                 0x0: VectorNonSplitFormat::verf_v({{

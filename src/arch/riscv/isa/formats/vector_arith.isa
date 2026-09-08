@@ -1273,10 +1273,12 @@ def format VectorNonSplitFormat(code, category, *flags) {{
         decoder_output = VectorNonSplitConstructor.subst(iop)
         exec_output = VectorIntNonSplitExecute.subst(iop)
         decode_block = VectorIntNonSplitDecodeBlock.subst(iop)
-    # The transpose unit's push and pop. Same body as iVpush/vpop -- gem5 times
-    # these, it does not compute them, so the only thing that differs is the
-    # op class the decoder hands over.
-    elif inst_name in ("tVpush", "tVpop") :
+    # The cross-lane unit's pushes and pops. Same body as iVpush/vpop -- gem5
+    # times these, it does not compute them, so the only thing that differs is the
+    # op class the decoder hands over. ONE UNDERSCORE IN THE NAME: this split is
+    # what a name like `x_vpush_add` falls out of, into an undefined `error()`.
+    elif inst_name in ("tVpush", "tVpop", "xVpushAdd", "xVpopAdd",
+                       "xVpushMax", "xVpopMax", "xVpushBcast", "xVpopBcast") :
         iop = InstObjParams(name,
             Name,
             'VectorNonSplitInst',

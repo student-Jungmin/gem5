@@ -130,6 +130,8 @@ class OpClass(Enum):
         "CustomVlaneIdx",
         "CustomTransposePush",
         "CustomTransposePop",
+        "CustomCrossbarPush",
+        "CustomCrossbarPop",
     ]
 
 
