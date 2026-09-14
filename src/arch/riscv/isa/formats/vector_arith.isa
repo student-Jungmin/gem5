@@ -1278,7 +1278,8 @@ def format VectorNonSplitFormat(code, category, *flags) {{
     # op class the decoder hands over. ONE UNDERSCORE IN THE NAME: this split is
     # what a name like `x_vpush_add` falls out of, into an undefined `error()`.
     elif inst_name in ("tVpush", "tVpop", "xVpushAdd", "xVpopAdd",
-                       "xVpushMax", "xVpopMax", "xVpushBcast", "xVpopBcast") :
+                       "xVpushMax", "xVpopMax", "xVpushBcast", "xVpopBcast",
+                       "xVpushMin", "xVpopMin") :
         iop = InstObjParams(name,
             Name,
             'VectorNonSplitInst',

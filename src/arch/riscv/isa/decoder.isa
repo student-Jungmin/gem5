@@ -4789,6 +4789,9 @@ decode QUADRANT default Unknown::unknown() {
                     0x2: VectorNonSplitFormat::xVpopBcast_v({{
                         Vd_vu[0] = 0;
                     }}, OPFVV, CustomCrossbarPopOp);
+                    0x4: VectorNonSplitFormat::xVpopMin_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomCrossbarPopOp);
                 }
                 0x1: decode SIMM5 {
                     0x0: VectorNonSplitFormat::compute00_vi({{
@@ -4899,6 +4902,10 @@ decode QUADRANT default Unknown::unknown() {
                         v_temp[0] = 0;
                     }}, OPFVV, CustomCrossbarPushOp);
                     0x2: VectorNonSplitFormat::xVpushBcast_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomCrossbarPushOp);
+                    0x4: VectorNonSplitFormat::xVpushMin_v({{
                         auto v_temp = Vs2_vu;
                         v_temp[0] = 0;
                     }}, OPFVV, CustomCrossbarPushOp);
