@@ -199,6 +199,30 @@ Execute::Execute(const std::string &name_,
 			FUPipeline *fu = new FUPipeline(fu_name.str(), *fu_description, cpu);
 
 			funcUnits.push_back(fu);
+		} else if (fuDescriptions.funcUnits[i]->unitType == "CrossLane") {
+			MinorFU *temp_fu = fuDescriptions.funcUnits[i];
+
+			MinorFUParams *DSParams = new MinorFUParams();
+			DSParams->opClasses = temp_fu->opClasses;
+			DSParams->opLat = temp_fu->opLat;
+			DSParams->issueLat = temp_fu->issueLat;
+			DSParams->crossLaneWidth = temp_fu->crossLaneWidth;
+			DSParams->cantForwardFromFUIndices = temp_fu->cantForwardFromFUIndices;
+			DSParams->timings = temp_fu->timings;
+			DSParams->unitType = temp_fu->unitType;
+
+			std::cout << "Creating CrossLaneFU with " << DSParams->crossLaneWidth
+			          << " lanes, opLat " << DSParams->opLat << std::endl;
+
+			CrossLaneFU *fu_description = new CrossLaneFU(*DSParams);
+
+			total_slots += fu_description->opLat;
+
+			fu_name << name_ << ".fu." << i;
+
+			FUPipeline *fu = new FUPipeline(fu_name.str(), *fu_description, cpu);
+
+			funcUnits.push_back(fu);
 		} else if (fuDescriptions.funcUnits[i]->unitType == "SparseAccelerator") {
 			MinorFU *temp_fu = fuDescriptions.funcUnits[i];
 
@@ -853,6 +877,19 @@ Execute::issue(ThreadID thread_id)
                         if (inst->staticInst->opClass() >= gem5::enums::CustomVtanh)
 							DPRINTF(PyTorchSim, "%s Issue at %d\n", *inst, cpu.curCycle());
 
+						if (fu->description.unitType == "CrossLane") {
+							CrossLaneFU *xlu = const_cast<CrossLaneFU*>(
+								dynamic_cast<const CrossLaneFU*>(&fu->description));
+							OpClass oc = inst->staticInst->opClass();
+							if ((oc == gem5::enums::CustomTransposePop ||
+							     oc == gem5::enums::CustomCrossbarPop) &&
+							    !xlu->is_popable(uint64_t(cpu.curCycle()))) {
+								/* the pass is still walking; nothing to take out */
+								fu_index++;
+								continue;
+							}
+						}
+
 						if (is_systolicArray) {
 							SystolicArrayFU *systolicFU = const_cast<SystolicArrayFU*>(dynamic_cast<const SystolicArrayFU*>(&fu->description));
 //							systolicFU->process();
@@ -1119,6 +1156,19 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
 
 		if (funcUnits.size() > inst->fuIndex) {
 			FUPipeline *fu = funcUnits[inst->fuIndex];
+
+			if (fu->description.unitType == "CrossLane") {
+				CrossLaneFU *xlu = const_cast<CrossLaneFU*>(
+					dynamic_cast<const CrossLaneFU*>(&fu->description));
+				OpClass oc = inst->staticInst->opClass();
+				if (oc == gem5::enums::CustomTransposePush)
+					xlu->push(vectorElemCount(*inst), true);
+				else if (oc == gem5::enums::CustomCrossbarPush)
+					xlu->push(vectorElemCount(*inst), false);
+				else if (oc == gem5::enums::CustomTransposePop ||
+				         oc == gem5::enums::CustomCrossbarPop)
+					xlu->pop(vectorElemCount(*inst), uint64_t(cpu.curCycle()));
+			}
 
 			if (fu->description.unitType == "SystolicArray") {\
 				SystolicArrayFU *systolicFU = const_cast<SystolicArrayFU*>(dynamic_cast<const SystolicArrayFU*>(&fu->description));

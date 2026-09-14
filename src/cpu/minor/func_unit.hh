@@ -182,6 +182,7 @@ class MinorFU : public SimObject
 
 	std::string unitType;
 	int systolicArrayWidth;
+	int crossLaneWidth;
 	int systolicArrayHeight;
 
   public:
@@ -194,6 +195,7 @@ class MinorFU : public SimObject
         timings(params.timings),
 		unitType(params.unitType),
 		systolicArrayWidth(params.systolicArrayWidth),
+		crossLaneWidth(params.crossLaneWidth),
 		systolicArrayHeight(params.systolicArrayHeight)
     { }
 
@@ -375,6 +377,62 @@ class SystolicArrayFU : public MinorFU
 	int ready_size() {
 		return oQueue.size();
 	}
+};
+
+/** The cross-lane unit, modelled the way SystolicArrayFU models the array: the
+ *  FU holds the pass's state instead of pretending a constant is its latency.
+ *  A push only stacks -- `depth` is the number of elements EACH LANE has handed
+ *  over -- and the first pop fires the pass, whose cost comes from the tile:
+ *
+ *      crossing (transpose, all-gather)   m + n - 1   one diagonal per cycle
+ *      lane-only (broadcast, permute)     2m + n      flatten + pass + re-stagger
+ *
+ *  `m` is the lane count and `n` is `depth`, so NEITHER IS A CONSTANT AND NEITHER
+ *  NEEDS TO BE: the unit counts what the instructions actually handed it. That is
+ *  what a per-FU `opLat` cannot say, because a pass is not one instruction --
+ *  it is `n/vl` pushes and `m/vl` pops, and those two counts differ whenever the
+ *  tile is not square. */
+class CrossLaneFU : public MinorFU
+{
+  private:
+    int lanes;              // m -- the machine's, fixed
+    int depth;              // n -- the tile's, counted from the pushes
+    bool crossing;          // the pending pass's XU bit
+    uint64_t busy_until;
+
+  public:
+    CrossLaneFU(const MinorFUParams &params) :
+        MinorFU(params),
+        lanes(params.crossLaneWidth),
+        depth(0),
+        crossing(false),
+        busy_until(0)
+    { }
+
+    /** A push stacks and names the pass. `size` is this instruction's `vl`,
+     *  which is per lane, so it adds to `depth` once and not once per lane. */
+    void push(int size, bool is_crossing) {
+        depth += size;
+        crossing = is_crossing;
+        DPRINTF(SystolicArray, "crosslane.push: +%d -> depth %d (crossing %d)\n",
+                size, depth, is_crossing);
+    }
+
+    /** THE FIRST POP RUNS THE PASS, as it does in the functional model: no lane's
+     *  answer exists until every lane is in. Later pops of the same tile find
+     *  `depth == 0` and only drain. */
+    void pop(int size, uint64_t cycle) {
+        if (depth > 0) {
+            int cost = crossing ? (lanes + depth - 1) : (2 * lanes + depth);
+            busy_until = cycle + cost;
+            DPRINTF(SystolicArray, "crosslane.pop: pass of %dx%d costs %d, busy to %llu\n",
+                    lanes, depth, cost, busy_until);
+            depth = 0;
+        }
+    }
+
+    /** Nothing can be taken out while the pass is still walking. */
+    bool is_popable(uint64_t cycle) const { return cycle >= busy_until; }
 };
 
 class SparseAccelFU : public MinorFU
