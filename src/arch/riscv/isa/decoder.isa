@@ -4776,20 +4776,33 @@ decode QUADRANT default Unknown::unknown() {
     0x16: decode FUNCT3 { // CUSTOMFORMAT
         0x3: decode VFUNCT6 {
             0x1: decode VM {
-                // The crossbar's pop. A .v.i like the transpose's, so it lands in
-                // the free VM arm of a family whose other arm is the matmul's 32
-                // computes -- SIMM5 names the operation, one family for the unit.
+                // The cross-lane unit's pop. A .v.i, so it lands in the free VM arm
+                // of a family whose other arm is the matmul's 32 computes -- SIMM5
+                // names the operation, one family for the whole unit.
+                // SIMM5 IS THREE FIELDS AND NOT AN OPCODE: [4:3] pre-RPU, [2] XU,
+                // [1:0] post-RPU. The arms below are the four combinations the
+                // compiler emits, and their numbers are those fields rather than a
+                // position in a list -- which is why 0x5 (cross, then replicate) is
+                // an all-gather in ONE pass where a flat code needed two. SIMM5 0 is
+                // deliberately absent: it asks the unit for no crossing at all.
+                // THE XU FIELD IS THE LATENCY, which is why the op class an arm
+                // hands over is not the same for all four. A pass that swaps depth
+                // and lane pays the transpose's serialiser and one that only
+                // shuffles lanes pays the crossbar's -- the two numbers gem5
+                // already has. So the arms ROUTE to op classes rather than share
+                // one, and the name Transpose/Crossbar reads as a cost here, not as
+                // a second machine: there is one unit and one queue pair.
                 0x0: decode SIMM5 {
-                    0x0: VectorNonSplitFormat::xVpopAdd_v({{
+                    0x4: VectorNonSplitFormat::xVpopXpose_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomTransposePopOp);
+                    0x5: VectorNonSplitFormat::xVpopGather_v({{
+                        Vd_vu[0] = 0;
+                    }}, OPFVV, CustomTransposePopOp);
+                    0x8: VectorNonSplitFormat::xVpopBcast_v({{
                         Vd_vu[0] = 0;
                     }}, OPFVV, CustomCrossbarPopOp);
-                    0x1: VectorNonSplitFormat::xVpopMax_v({{
-                        Vd_vu[0] = 0;
-                    }}, OPFVV, CustomCrossbarPopOp);
-                    0x2: VectorNonSplitFormat::xVpopBcast_v({{
-                        Vd_vu[0] = 0;
-                    }}, OPFVV, CustomCrossbarPopOp);
-                    0x4: VectorNonSplitFormat::xVpopMin_v({{
+                    0x10: VectorNonSplitFormat::xVpopPermute_v({{
                         Vd_vu[0] = 0;
                     }}, OPFVV, CustomCrossbarPopOp);
                 }
@@ -4873,39 +4886,27 @@ decode QUADRANT default Unknown::unknown() {
                     Vd_vu[0] = 0;
                 }}, OPFVV, CustomMatMulvpopOp);
             }
-            // The transpose unit's pop. THE SF.VC FORM PICKS THE SLOT: bit 29
-            // says an instruction takes a vector operand and bit 25 says it
-            // writes none, so a push and a pop cannot share a VFUNCT6 -- the pop
-            // is a .v.i beside vpop (0x2) and the push is a .iv beside iVpush,
-            // down in 0x0a. lower_to_vcix reaches these through the upstream
-            // sf.vc intrinsics, which can only ask for those forms.
-            0x3: decode VM {
-                0x0: decode SIMM5 {
-                    0x0: VectorNonSplitFormat::tVpop_v({{
-                        Vd_vu[0] = 0;
-                    }}, OPFVV, CustomTransposePopOp);
-                }
-            }
             0xb: decode VM {
                 0x0: VectorNonSplitFormat::vexp_v({{
                     Vd_vu[0] = Vs2_vu[0];
                 }}, OPFVV, CustomVexpOp);
-                // The crossbar's push -- a .iv like every other push, which is
-                // what puts it beside vexp rather than beside its own pop.
+                // The cross-lane unit's push -- a .iv like every other push, which
+                // is what puts it beside vexp rather than beside its own pop. The
+                // SIMM5 numbering is the pop's; see the comment there for the fields.
                 0x1: decode SIMM5 {
-                    0x0: VectorNonSplitFormat::xVpushAdd_v({{
+                    0x4: VectorNonSplitFormat::xVpushXpose_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomTransposePushOp);
+                    0x5: VectorNonSplitFormat::xVpushGather_v({{
+                        auto v_temp = Vs2_vu;
+                        v_temp[0] = 0;
+                    }}, OPFVV, CustomTransposePushOp);
+                    0x8: VectorNonSplitFormat::xVpushBcast_v({{
                         auto v_temp = Vs2_vu;
                         v_temp[0] = 0;
                     }}, OPFVV, CustomCrossbarPushOp);
-                    0x1: VectorNonSplitFormat::xVpushMax_v({{
-                        auto v_temp = Vs2_vu;
-                        v_temp[0] = 0;
-                    }}, OPFVV, CustomCrossbarPushOp);
-                    0x2: VectorNonSplitFormat::xVpushBcast_v({{
-                        auto v_temp = Vs2_vu;
-                        v_temp[0] = 0;
-                    }}, OPFVV, CustomCrossbarPushOp);
-                    0x4: VectorNonSplitFormat::xVpushMin_v({{
+                    0x10: VectorNonSplitFormat::xVpushPermute_v({{
                         auto v_temp = Vs2_vu;
                         v_temp[0] = 0;
                     }}, OPFVV, CustomCrossbarPushOp);
@@ -4943,19 +4944,6 @@ decode QUADRANT default Unknown::unknown() {
                     0x3: VectorNonSplitFormat::vatan_v({{
                         Vd_vu[0] = Vs2_vu[0];
                     }}, OPFVV, CustomVatanOp);
-                }
-                // The transpose unit's push -- a .iv like i_vpush and w_vpush,
-                // which is what puts it here rather than beside its own pop.
-                // SIMM5 IS DECODED, not ignored: a family number is one of four
-                // per form, so a different machine takes a family and a different
-                // operation of the same machine takes a SIMM5. Matching all 32
-                // here would spend the transpose unit's whole reserve on its
-                // first operation.
-                0x1: decode SIMM5 {
-                    0x0: VectorNonSplitFormat::tVpush_v({{
-                        auto v_temp = Vs2_vu;
-                        v_temp[0] = 0;
-                    }}, OPFVV, CustomTransposePushOp);
                 }
             }
         }
