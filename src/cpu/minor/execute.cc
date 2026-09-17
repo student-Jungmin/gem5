@@ -1161,10 +1161,12 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
 				CrossLaneFU *xlu = const_cast<CrossLaneFU*>(
 					dynamic_cast<const CrossLaneFU*>(&fu->description));
 				OpClass oc = inst->staticInst->opClass();
-				if (oc == gem5::enums::CustomTransposePush)
-					xlu->push(vectorElemCount(*inst), true);
-				else if (oc == gem5::enums::CustomCrossbarPush)
-					xlu->push(vectorElemCount(*inst), false);
+				if (oc == gem5::enums::CustomTransposePush ||
+				    oc == gem5::enums::CustomCrossbarPush) {
+					/* SIMM5 is ExtMachInst[19:15] -- pre[4:3], XU[2], post[1:0] */
+					int simm5 = (int)((inst->staticInst->getEMI() >> 15) & 0x1F);
+					xlu->push(vectorElemCount(*inst), simm5);
+				}
 				else if (oc == gem5::enums::CustomTransposePop ||
 				         oc == gem5::enums::CustomCrossbarPop)
 					xlu->pop(vectorElemCount(*inst), uint64_t(cpu.curCycle()));

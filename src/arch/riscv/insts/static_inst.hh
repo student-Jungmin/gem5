@@ -72,6 +72,13 @@ class RiscvStaticInst : public StaticInst
   public:
     ExtMachInst machInst;
 
+    /** The decoded instruction, for the timing model. ARM has had this since
+     *  MinorFUTiming was written and RISC-V never did, so `mask`/`match` on an
+     *  ExtMachInst matched nothing here and a functional unit could not tell
+     *  one of its op class's instructions from another. The cross-lane unit
+     *  needs SIMM5 -- its three stage fields -- to know what a pass costs. */
+    uint64_t getEMI() const override { return machInst; }
+
     void
     advancePC(PCStateBase &pc) const override
     {

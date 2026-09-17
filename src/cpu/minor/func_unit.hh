@@ -397,25 +397,31 @@ class CrossLaneFU : public MinorFU
   private:
     int lanes;              // m -- the machine's, fixed
     int depth;              // n -- the tile's, counted from the pushes
-    bool crossing;          // the pending pass's XU bit
+    int pre, xu, post;      // the pending pass's three SIMM5 fields
     uint64_t busy_until;
+
+    /** What one stage costs over an m x n tile. THE UNIT IS THREE STAGES AND THE
+     *  COST IS THEIR SUM -- a pass that replicates after crossing pays for both,
+     *  which a single "does it cross?" bit cannot say. */
+    int rpuCost()  const { return 2 * lanes + depth; }   // flatten + pass + re-stagger
+    int xuCost()   const { return lanes + depth - 1; }   // one diagonal per cycle
 
   public:
     CrossLaneFU(const MinorFUParams &params) :
         MinorFU(params),
         lanes(params.crossLaneWidth),
-        depth(0),
-        crossing(false),
+        depth(0), pre(0), xu(0), post(0),
         busy_until(0)
     { }
 
-    /** A push stacks and names the pass. `size` is this instruction's `vl`,
-     *  which is per lane, so it adds to `depth` once and not once per lane. */
-    void push(int size, bool is_crossing) {
+    /** A push stacks and names the pass. `size` is this instruction's `vl`, which
+     *  is per lane, so it adds to `depth` once and not once per lane. The three
+     *  fields come from SIMM5, which is why RiscvStaticInst had to grow getEMI(). */
+    void push(int size, int simm5) {
         depth += size;
-        crossing = is_crossing;
-        DPRINTF(SystolicArray, "crosslane.push: +%d -> depth %d (crossing %d)\n",
-                size, depth, is_crossing);
+        pre  = (simm5 >> 3) & 0x3;
+        xu   = (simm5 >> 2) & 0x1;
+        post =  simm5       & 0x3;
     }
 
     /** THE FIRST POP RUNS THE PASS, as it does in the functional model: no lane's
@@ -423,10 +429,10 @@ class CrossLaneFU : public MinorFU
      *  `depth == 0` and only drain. */
     void pop(int size, uint64_t cycle) {
         if (depth > 0) {
-            int cost = crossing ? (lanes + depth - 1) : (2 * lanes + depth);
+            int cost = (pre ? rpuCost() : 0)
+                     + (xu  ? xuCost()  : 0)
+                     + (post ? rpuCost() : 0);
             busy_until = cycle + cost;
-            DPRINTF(SystolicArray, "crosslane.pop: pass of %dx%d costs %d, busy to %llu\n",
-                    lanes, depth, cost, busy_until);
             depth = 0;
         }
     }
