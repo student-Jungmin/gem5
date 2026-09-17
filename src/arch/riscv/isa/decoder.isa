@@ -4906,6 +4906,14 @@ decode QUADRANT default Unknown::unknown() {
                         auto v_temp = Vs2_vu;
                         v_temp[0] = 0;
                     }}, OPFVV, CustomCrossbarPushOp);
+                }
+            }
+            // THE PERMUTE'S PUSH IS THE `.ivv` FORM, which is `.iv` with funct6 bit
+            // 5 set -- 0b001011 -> 0b101011. It sits here and not beside the other
+            // pushes because the second vector operand is what carries the pattern,
+            // and a form with one vector has nowhere to put it.
+            0x2b: decode VM {
+                0x1: decode SIMM5 {
                     0x10: VectorNonSplitFormat::xVpushPermute_v({{
                         auto v_temp = Vs2_vu;
                         v_temp[0] = 0;
